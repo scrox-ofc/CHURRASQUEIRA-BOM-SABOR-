@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Churrasqueira Bom Sabor - Gestão de Stock</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- SheetJS (Excel) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <!-- jsPDF & autoTable (PDF) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: #f8fafc;
+        }
+        @media print {
+            .no-print {
+                display: none !important;
+            }
+            .print-only {
+                display: block !important;
+            }
+            body {
+                background: white !important;
+                color: black !important;
+            }
+            .card-shadow {
+                box-shadow: none !important;
+                border: 1px solid #ccc !important;
+            }
+        }
+        .print-only {
+            display: none;
+        }
+    </style>
+</head>
+<body class="min-h-screen text-slate-800 flex flex-col">
+
+    <!-- HEADER / BARRA SUPERIOR -->
+    <header class="bg-gradient-to-r from-amber-600 via-orange-600 to-red-600 text-white shadow-lg no-print">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5">
+            <div class="flex flex-col md:flex-row justify-between items-center gap-4">
+                <div class="flex items-center gap-3 text-center md:text-left">
+                    <div class="bg-white/20 p-3 rounded-2xl backdrop-blur-md flex items-center justify-center">
+                        <i class="fa-solid font-bold fa-fire-burner text-3xl text-amber-200"></i>
+                    </div>
+                    <div>
+                        <h1 class="text-2xl sm:text-3xl font-extrabold tracking-tight">Churrasqueira Bom Sabor</h1>
+                        <p class="text-xs sm:text-sm font-medium text-amber-100 opacity-90">Take Away By Marlene Paulos • Gestão de Armazém e Stock</p>
+                    </div>
+                </div>
+
+                <div class="flex flex-wrap justify-center items-center gap-2">
+                    <button onclick="openModal()" class="bg-white text-orange-700 hover:bg-amber-50 font-bold px-4 py-2.5 rounded-xl shadow-md transition flex items-center gap-2 text-sm">
+                        <i class="fa-solid fa-plus text-base"></i> Novo Produto
+                    </button>
+                    <div class="relative group">
+                        <button class="bg-amber-700/80 hover:bg-amber-800 text-white font-semibold px-4 py-2.5 rounded-xl transition flex items-center gap-2 text-sm border border-white/20">
+                            <i class="fa-solid fa-download"></i> Exportar <i class="fa-solid fa-chevron-down text-xs"></i>
+                        </button>
+                        <div class="absolute right-0 mt-1 w-48 bg-white rounded-xl shadow-xl border border-slate-100 hidden group-hover:block z-50 py-2 text-slate-700 text-sm">
+                            <button onclick="exportToExcel()" class="w-full text-left px-4 py-2 hover:bg-slate-50 flex items-center gap-2 text-emerald-700 font-medium">
+                                <i class="fa-solid fa-file-excel"></i> Baixar Excel (.xlsx)
+                            </button>
+                            <button onclick="exportToPDF()" class="w-full text-left px-4 py-2 hover:bg-slate-50 flex items-center gap-2 text-rose-700 font-medium">
+                                <i class="fa-solid fa-file-pdf"></i> Baixar PDF (.pdf)
+                            </button>
+                            <button onclick="window.print()" class="w-full text-left px-4 py-2 hover:bg-slate-50 flex items-center gap-2 text-slate-700 font-medium">
+                                <i class="fa-solid fa-print"></i> Imprimir
+                            </button>
+                            <hr class="my-1 border-slate-100">
+                            <button onclick="exportJSONForDrive()" class="w-full text-left px-4 py-2 hover:bg-slate-50 flex items-center gap-2 text-sky-700 font-medium">
+                                <i class="fa-brands fa-google-drive"></i> Cópia p/ Google Drive
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- CABEÇALHO EXCLUSIVO PARA IMPRESSÃO -->
+    <div class="print-only p-6 text-center border-b border-slate-300">
+        <h1 class="text-2xl font-bold text-slate-900">Churrasqueira Bom Sabor Take Away By Marlene Paulos</h1>
+        <p class="text-sm text-slate-600">Relatório de Inventário de Stock • Gerado em: <span id="printDate"></span></p>
+    </div>
+
+    <!-- CONTEÚDO PRINCIPAL -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-1 w-full">
+
+        <!-- CARDS DE ESTATÍSTICAS -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6 no-print">
+            <div class="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-slate-200/80 flex items-center gap-4">
+                <div class="bg-amber-100 text-amber-700 p-3 rounded-xl">
+                    <i class="fa-solid fa-boxes-stacked text-xl sm:text-2xl"></i>
+                </div>
+                <div>
+                    <p class="text-xs font-semibold uppercase text-slate-400">Total Itens</p>
+                    <h3 id="statTotalItems" class="text-xl sm:text-2xl font-extrabold text-slate-800">0</h3>
+                </div>
+            </div>
+
+            <div id="cardLowStock" class="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-slate-200/80 flex items-center gap-4">
+                <div class="bg-red-100 text-red-600 p-3 rounded-xl">
+                    <i class="fa-solid fa-triangle-exclamation text-xl sm:text-2xl"></i>
+                </div>
+                <div>
+                    <p class="text-xs font-semibold uppercase text-slate-400">Stock Baixo</p>
+                    <h3 id="statLowStock" class="text-xl sm:text-2xl font-extrabold text-slate-800">0</h3>
+                </div>
+            </div>
+
+            <div class="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-slate-200/80 flex items-center gap-4">
+                <div class="bg-blue-100 text-blue-700 p-3 rounded-xl">
+                    <i class="fa-solid fa-layer-group text-xl sm:text-2xl"></i>
+                </div>
+                <div>
+                    <p class="text-xs font-semibold uppercase text-slate-400">Categorias</p>
+                    <h3 id="statCategories" class="text-xl sm:text-2xl font-extrabold text-slate-800">0</h3>
+                </div>
+            </div>
+
+            <div class="bg-white p-4 sm:p-5 rounded-2xl shadow-sm border border-slate-200/80 flex items-center gap-4">
+                <div class="bg-emerald-100 text-emerald-700 p-3 rounded-xl">
+                    <i class="fa-solid fa-box-check text-xl sm:text-2xl"></i>
+                </div>
+                <div>
+                    <p class="text-xs font-semibold uppercase text-slate-400">Stock OK</p>
+                    <h3 id="statNormalStock" class="text-xl sm:text-2xl font-extrabold text-slate-800">0</h3>
+                </div>
+            </div>
+        </div>
+
+        <!-- FILTROS E PESQUISA -->
+        <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200/80 mb-6 flex flex-col md:flex-row gap-3 justify-between items-center no-print">
+            <!-- Barra de Pesquisa -->
+            <div class="relative w-full md:w-80">
+                <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                <input type="text" id="searchInput" oninput="renderTable()" placeholder="Pesquisar produto ou local..." class="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 transition">
+            </div>
+
+            <div class="flex flex-wrap w-full md:w-auto gap-2 items-center">
+                <!-- Filtro de Categoria -->
+                <select id="categoryFilter" onchange="renderTable()" class="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-500 flex-1 md:flex-none">
+                    <option value="ALL">Todas as Categorias</option>
+                    <option value="Ingredientes">🌾 Ingredientes / Alimentos</option>
+                    <option value="Bebidas">🥤 Bebidas</option>
+                    <option value="Takeaway">📦 Embalagens / Takeaway</option>
+                    <option value="Limpeza">🧹 Produtos de Limpeza</option>
+                    <option value="Outros">📋 Outros</option>
+                </select>
+
+                <!-- Botão Toggle Apenas Stock Baixo -->
+                <button id="btnLowStockFilter" onclick="toggleLowStockFilter()" class="px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-50 transition flex items-center gap-2">
+                    <i class="fa-solid fa-filter text-amber-600"></i> Apenas Stock Baixo
+                </button>
+            </div>
+        </div>
+
+        <!-- TABELA DE PRODUTOS -->
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-200/80 overflow-hidden card-shadow">
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse" id="stockTable">
+                    <thead>
+                        <tr class="bg-slate-50 text-slate-500 font-semibold text-xs uppercase tracking-wider border-b border-slate-200">
+                            <th class="py-4 px-4 sm:px-6">Status</th>
+                            <th class="py-4 px-4 sm:px-6">Produto</th>
+                            <th class="py-4 px-4 sm:px-6">Categoria</th>
+                            <th class="py-4 px-4 sm:px-6 text-center">Quantidade</th>
+                            <th class="py-4 px-4 sm:px-6">Stock Mín.</th>
+                            <th class="py-4 px-4 sm:px-6">Local de Guarda</th>
+                            <th class="py-4 px-4 sm:px-6 text-center no-print">Ações Rápidas</th>
+                        </tr>
+                    </thead>
+                    <tbody id="inventoryTableBody" class="divide-y divide-slate-100 text-sm text-slate-700">
+                        <!-- Renderizado via Javascript -->
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Estado Vazio -->
+            <div id="emptyState" class="hidden py-12 text-center">
+                <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-slate-100 text-slate-400 mb-3">
+                    <i class="fa-solid fa-box-open text-2xl"></i>
+                </div>
+                <h4 class="text-base font-semibold text-slate-700">Nenhum item encontrado</h4>
+                <p class="text-sm text-slate-400">Tente ajustar a pesquisa ou adicionar novos produtos.</p>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- FOOTER -->
+    <footer class="bg-white border-t border-slate-200 py-4 text-center text-xs text-slate-400 mt-auto no-print">
+        <p>© Churrasqueira Bom Sabor Take Away By Marlene Paulos. Todos os direitos reservados.</p>
+    </footer>
+
+    <!-- MODAL DE ADICIONAR / EDITAR PRODUTO -->
+    <div id="productModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4 no-print">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden transform transition-all">
+            <div class="bg-gradient-to-r from-amber-600 to-orange-600 px-6 py-4 text-white flex justify-between items-center">
+                <h3 id="modalTitle" class="font-bold text-lg">Adicionar Novo Produto</h3>
+                <button onclick="closeModal()" class="text-white/80 hover:text-white text-xl"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+
+            <form id="productForm" onsubmit="handleSaveProduct(event)" class="p-6 space-y-4">
+                <input type="hidden" id="productId">
+
+                <div>
+                    <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Nome do Produto *</label>
+                    <input type="text" id="inputName" required placeholder="Ex: Arroz Agulha 5kg, Caixas Takeaway 1000ml" class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm focus:ring-2 focus:ring-amber-500 focus:outline-none">
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Categoria *</label>
+                        <select id="inputCategory" required class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm focus:ring-2 focus:ring-amber-500 focus:outline-none">
+                            <option value="Ingredientes">🌾 Ingredientes / Alimentos</option>
+                            <option value="Bebidas">🥤 Bebidas</option>
+                            <option value="Takeaway">📦 Embalagens / Takeaway</option>
+                            <option value="Limpeza">🧹 Produtos de Limpeza</option>
+                            <option value="Outros">📋 Outros</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Unidade *</label>
+                        <select id="inputUnit" required class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm focus:ring-2 focus:ring-amber-500 focus:outline-none">
+                            <option value="Kg">Quilogramas (Kg)</option>
+                            <option value="Unidades">Unidades (Un)</option>
+                            <option value="Caixas">Caixas (Cx)</option>
+                            <option value="Pacotes">Pacotes (Pac)</option>
+                            <option value="Litros">Litros (L)</option>
+                            <option value="Garrafas">Garrafas</option>
+                            <option value="Latas">Latas</option>
+                            <option value="Rolos">Rolos</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Qtd. Atual em Stock *</label>
+                        <input type="number" id="inputQuantity" step="0.01" min="0" required placeholder="0" class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm focus:ring-2 focus:ring-amber-500 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Stock Mínimo (Alerta) *</label>
+                        <input type="number" id="inputMinQuantity" step="0.01" min="0" required placeholder="5" class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm focus:ring-2 focus:ring-amber-500 focus:outline-none">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-slate-600 uppercase mb-1">Local de Armazenamento</label>
+                    <input type="text" id="inputLocation" placeholder="Ex: Armazém Principal, Arca 2, Prateleira Limpeza" class="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm focus:ring-2 focus:ring-amber-500 focus:outline-none">
+                </div>
+
+                <div class="pt-4 flex justify-end gap-3 border-t border-slate-100">
+                    <button type="button" onclick="closeModal()" class="px-4 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-semibold text-sm hover:bg-slate-50 transition">Cancelar</button>
+                    <button type="submit" class="px-5 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-sm shadow-md transition">Guardar Produto</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- SCRIPT DA APLICAÇÃO -->
+    <script>
+        // Dados de exemplo Iniciais caso não existam no LocalStorage
+        const initialProducts = [
+            { id: '1', name: 'Arroz Agulha (Sacos 5kg)', category: 'Ingredientes', quantity: 12, unit: 'Pacotes', minQuantity: 5, location: 'Despensa Seca' },
+            { id: '2', name: 'Batata para Fritar (Sacos 10kg)', category: 'Ingredientes', quantity: 8, unit: 'Pacotes', minQuantity: 3, location: 'Armazém 1' },
+            { id: '3', name: 'Frango de Churrasco (Caixa)', category: 'Ingredientes', quantity: 4, unit: 'Caixas', minQuantity: 2, location: 'Arca Congelação 1' },
+            { id: '4', name: 'Óleo Alimentar 5L', category: 'Ingredientes', quantity: 6, unit: 'Garrafas', minQuantity: 3, location: 'Cozinha' },
+            { id: '5', name: 'Sal Grosso (Sacos 1kg)', category: 'Ingredientes', quantity: 15, unit: 'Pacotes', minQuantity: 5, location: 'Prateleira Tempero' },
+            { id: '6', name: 'Caixas Takeaway Frango Grande', category: 'Takeaway', quantity: 150, unit: 'Unidades', minQuantity: 100, location: 'Armazém Embalagens' },
+            { id: '7', name: 'Sacos de Papel Takeaway', category: 'Takeaway', quantity: 80, unit: 'Unidades', minQuantity: 100, location: 'Balcão' },
+            { id: '8', name: 'Caixas de Sopa Térmicas', category: 'Takeaway', quantity: 45, unit: 'Unidades', minQuantity: 50, location: 'Armazém Embalagens' },
+            { id: '9', name: 'Sumol de Laranja (Latas 33cl)', category: 'Bebidas', quantity: 48, unit: 'Latas', minQuantity: 24, location: 'Frigorífico Bebidas' },
+            { id: '10', name: 'Cerveja Sagres (Garrafas 33cl)', category: 'Bebidas', quantity: 72, unit: 'Garrafas', minQuantity: 30, location: 'Frigorífico Bebidas' },
+            { id: '11', name: 'Água Mineral 1.5L', category: 'Bebidas', quantity: 18, unit: 'Garrafas', minQuantity: 12, location: 'Arrumo Bebidas' },
+            { id: '12', name: 'Detergente Loiça Industrial 5L', category: 'Limpeza', quantity: 2, unit: 'Garrafas', minQuantity: 2, location: 'Arrumo Limpeza' },
+            { id: '13', name: 'Desengordurante Fogão/Grelha 1L', category: 'Limpeza', quantity: 1, unit: 'Garrafas', minQuantity: 3, location: 'Cozinha Limpeza' },
+            { id: '14', name: 'Papel Mão Rolo Gigante', category: 'Limpeza', quantity: 4, unit: 'Rolos', minQuantity: 2, location: 'Arrumo Limpeza' }
+        ];
+
+        let inventory = JSON.parse(localStorage.getItem('churrasqueira_stock')) || initialProducts;
+        let onlyLowStockFilter = false;
+
+        // Iniciar App
+        document.addEventListener('DOMContentLoaded', () => {
+            renderTable();
+            document.getElementById('printDate').innerText = new Date().toLocaleDateString('pt-PT');
+        });
+
+        // Guardar no LocalStorage
+        function saveToLocalStorage() {
+            localStorage.setItem('churrasqueira_stock', JSON.stringify(inventory));
+            renderTable();
+        }
+
+        // Renderizar Tabela e Cards
+        function renderTable() {
+            const tbody = document.getElementById('inventoryTableBody');
+            const searchVal = document.getElementById('searchInput').value.toLowerCase();
+            const catVal = document.getElementById('categoryFilter').value;
+            const emptyState = document.getElementById('emptyState');
+
+            tbody.innerHTML = '';
+
+            let filtered = inventory.filter(item => {
+                const matchesSearch = item.name.toLowerCase().includes(searchVal) || 
+                                      (item.location && item.location.toLowerCase().includes(searchVal));
+                const matchesCat = catVal === 'ALL' || item.category === catVal;
+                const isLow = Number(item.quantity) <= Number(item.minQuantity);
+                const matchesLow = !onlyLowStockFilter || isLow;
+
+                return matchesSearch && matchesCat && matchesLow;
+            });
+
+            // Atualizar Estatísticas
+            updateStats();
+
+            if (filtered.length === 0) {
+                emptyState.classList.remove('hidden');
+            } else {
+                emptyState.classList.add('hidden');
+            }
+
+            filtered.forEach(item => {
+                const isLow = Number(item.quantity) <= Number(item.minQuantity);
+                const row = document.createElement('tr');
+                row.className = "hover:bg-slate-50/80 transition border-b border-slate-100";
+
+                let catBadgeColor = "bg-slate-100 text-slate-700";
+                if(item.category === 'Ingredientes') catBadgeColor = "bg-amber-100 text-amber-800";
+                if(item.category === 'Bebidas') catBadgeColor = "bg-blue-100 text-blue-800";
+                if(item.category === 'Takeaway') catBadgeColor = "bg-orange-100 text-orange-800";
+                if(item.category === 'Limpeza') catBadgeColor = "bg-emerald-100 text-emerald-800";
+
+                row.innerHTML = `
+                    <td class="py-3.5 px-4 sm:px-6">
+                        ${isLow 
+                            ? `<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-red-100 text-red-700 border border-red-200"><span class="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span> Stock Baixo</span>`
+                            : `<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200"><span class="w-2 h-2 rounded-full bg-emerald-500"></span> Normal</span>`
+                        }
+                    </td>
+                    <td class="py-3.5 px-4 sm:px-6 font-bold text-slate-800">${escapeHtml(item.name)}</td>
+                    <td class="py-3.5 px-4 sm:px-6">
+                        <span class="px-2.5 py-1 rounded-lg text-xs font-semibold ${catBadgeColor}">${item.category}</span>
+                    </td>
+                    <td class="py-3.5 px-4 sm:px-6 text-center">
+                        <span class="text-base font-extrabold ${isLow ? 'text-red-600' : 'text-slate-800'}">${item.quantity}</span>
+                        <span class="text-xs text-slate-500 font-medium">${item.unit}</span>
+                    </td>
+                    <td class="py-3.5 px-4 sm:px-6 font-medium text-slate-500">${item.minQuantity} ${item.unit}</td>
+                    <td class="py-3.5 px-4 sm:px-6 text-slate-600 text-xs font-medium"><i class="fa-solid fa-location-dot text-slate-400 mr-1"></i>${escapeHtml(item.location || 'N/A')}</td>
+                    <td class="py-3.5 px-4 sm:px-6 text-center no-print">
+                        <div class="flex items-center justify-center gap-1">
+                            <button onclick="adjustQuantity('${item.id}', -1)" title="Diminuir Stock" class="w-8 h-8 rounded-lg bg-slate-100 hover:bg-red-100 hover:text-red-600 text-slate-600 transition flex items-center justify-center font-bold text-sm">
+                                <i class="fa-solid fa-minus"></i>
+                            </button>
+                            <button onclick="adjustQuantity('${item.id}', 1)" title="Aumentar Stock" class="w-8 h-8 rounded-lg bg-slate-100 hover:bg-emerald-100 hover:text-emerald-600 text-slate-600 transition flex items-center justify-center font-bold text-sm">
+                                <i class="fa-solid fa-plus"></i>
+                            </button>
+                            <button onclick="editProduct('${item.id}')" title="Editar Produto" class="w-8 h-8 rounded-lg bg-slate-100 hover:bg-amber-100 hover:text-amber-700 text-slate-600 transition flex items-center justify-center text-xs ml-1">
+                                <i class="fa-solid fa-pen"></i>
+                            </button>
+                            <button onclick="deleteProduct('${item.id}')" title="Eliminar Produto" class="w-8 h-8 rounded-lg bg-slate-100 hover:bg-red-100 hover:text-red-600 text-slate-400 transition flex items-center justify-center text-xs">
+                                <i class="fa-solid fa-trash"></i>
+                            </button>
+                        </div>
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+
+        // Atualizar Contadores do Topo
+        function updateStats() {
+            const total = inventory.length;
+            const lowStockCount = inventory.filter(i => Number(i.quantity) <= Number(i.minQuantity)).length;
+            const normalCount = total - lowStockCount;
+            const categoriesCount = new Set(inventory.map(i => i.category)).size;
+
+            document.getElementById('statTotalItems').innerText = total;
+            document.getElementById('statLowStock').innerText = lowStockCount;
+            document.getElementById('statNormalStock').innerText = normalCount;
+            document.getElementById('statCategories').innerText = categoriesCount;
+
+            const lowCard = document.getElementById('cardLowStock');
+            if (lowStockCount > 0) {
+                lowCard.classList.add('border-red-300', 'bg-red-50/30');
+            } else {
+                lowCard.classList.remove('border-red-300', 'bg-red-50/30');
+            }
+        }
+
+        // Ajustar Quantidade Rápida (+ / -)
+        function adjustQuantity(id, amount) {
+            const item = inventory.find(i => i.id === id);
+            if (item) {
+                const newQty = Number(item.quantity) + amount;
+                if (newQty >= 0) {
+                    item.quantity = newQty;
+                    saveToLocalStorage();
+                }
+            }
+        }
+
+        // Abrir Modal de Adicionar/Editar
+        function openModal(isEdit = false) {
+            document.getElementById('productModal').classList.remove('hidden');
+            if (!isEdit) {
+                document.getElementById('modalTitle').innerText = "Adicionar Novo Produto";
+                document.getElementById('productForm').reset();
+                document.getElementById('productId').value = '';
+            }
+        }
+
+        function closeModal() {
+            document.getElementById('productModal').classList.add('hidden');
+        }
+
+        // Guardar Produto
+        function handleSaveProduct(e) {
+            e.preventDefault();
+            const id = document.getElementById('productId').value;
+            const name = document.getElementById('inputName').value.trim();
+            const category = document.getElementById('inputCategory').value;
+            const unit = document.getElementById('inputUnit').value;
+            const quantity = parseFloat(document.getElementById('inputQuantity').value);
+            const minQuantity = parseFloat(document.getElementById('inputMinQuantity').value);
+            const location = document.getElementById('inputLocation').value.trim();
+
+            if (id) {
+                // Editar
+                const item = inventory.find(i => i.id === id);
+                if (item) {
+                    item.name = name;
+                    item.category = category;
+                    item.unit = unit;
+                    item.quantity = quantity;
+                    item.minQuantity = minQuantity;
+                    item.location = location;
+                }
+            } else {
+                // Criar Novo
+                const newItem = {
+                    id: Date.now().toString(),
+                    name,
+                    category,
+                    unit,
+                    quantity,
+                    minQuantity,
+                    location
+                };
+                inventory.unshift(newItem);
+            }
+
+            saveToLocalStorage();
+            closeModal();
+        }
+
+        // Preencher Form para Edição
+        function editProduct(id) {
+            const item = inventory.find(i => i.id === id);
+            if (item) {
+                document.getElementById('productId').value = item.id;
+                document.getElementById('inputName').value = item.name;
+                document.getElementById('inputCategory').value = item.category;
+                document.getElementById('inputUnit').value = item.unit;
+                document.getElementById('inputQuantity').value = item.quantity;
+                document.getElementById('inputMinQuantity').value = item.minQuantity;
+                document.getElementById('inputLocation').value = item.location || '';
+
+                document.getElementById('modalTitle').innerText = "Editar Produto";
+                openModal(true);
+            }
+        }
+
+        // Eliminar Produto
+        function deleteProduct(id) {
+            if (confirm("Tem certeza que deseja eliminar este produto do stock?")) {
+                inventory = inventory.filter(i => i.id !== id);
+                saveToLocalStorage();
+            }
+        }
+
+        // Toggle Filtro de Stock Baixo
+        function toggleLowStockFilter() {
+            onlyLowStockFilter = !onlyLowStockFilter;
+            const btn = document.getElementById('btnLowStockFilter');
+            if (onlyLowStockFilter) {
+                btn.classList.add('bg-amber-600', 'text-white', 'border-amber-600');
+                btn.classList.remove('text-slate-600');
+            } else {
+                btn.classList.remove('bg-amber-600', 'text-white', 'border-amber-600');
+                btn.classList.add('text-slate-600');
+            }
+            renderTable();
+        }
+
+        // EXPORTAR PARA EXCEL
+        function exportToExcel() {
+            const dataToExport = inventory.map(item => ({
+                'Estado': Number(item.quantity) <= Number(item.minQuantity) ? 'STOCK BAIXO' : 'OK',
+                'Produto': item.name,
+                'Categoria': item.category,
+                'Quantidade': item.quantity,
+                'Unidade': item.unit,
+                'Stock Mínimo': item.minQuantity,
+                'Localização': item.location || 'N/A'
+            }));
+
+            const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "Stock Bom Sabor");
+            
+            // Gerar ficheiro Excel
+            XLSX.writeFile(workbook, `Stock_Churrasqueira_Bom_Sabor_${new Date().toISOString().slice(0,10)}.xlsx`);
+        }
+
+        // EXPORTAR PARA PDF
+        function exportToPDF() {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+
+            doc.setFontSize(16);
+            doc.setTextColor(217, 119, 6); // Cor Ambar
+            doc.text("Churrasqueira Bom Sabor Take Away", 14, 15);
+            doc.setFontSize(10);
+            doc.setTextColor(100);
+            doc.text("By Marlene Paulos • Relatório de Inventário de Stock", 14, 21);
+            doc.text(`Data: ${new Date().toLocaleDateString('pt-PT')}`, 14, 26);
+
+            const tableData = inventory.map(item => [
+                Number(item.quantity) <= Number(item.minQuantity) ? 'STOCK BAIXO' : 'OK',
+                item.name,
+                item.category,
+                `${item.quantity} ${item.unit}`,
+                `${item.minQuantity} ${item.unit}`,
+                item.location || '-'
+            ]);
+
+            doc.autoTable({
+                startY: 32,
+                head: [['Status', 'Produto', 'Categoria', 'Qtd Atual', 'Qtd Mínima', 'Local']],
+                body: tableData,
+                headStyles: { fillColor: [217, 119, 6] },
+                alternateRowStyles: { fillColor: [248, 250, 252] },
+                styles: { fontSize: 8 }
+            });
+
+            doc.save(`Stock_Bom_Sabor_${new Date().toISOString().slice(0,10)}.pdf`);
+        }
+
+        // CÓPIA DE SEGURANÇA PARA GOOGLE DRIVE
+        function exportJSONForDrive() {
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(inventory, null, 2));
+            const downloadAnchor = document.createElement('a');
+            downloadAnchor.setAttribute("href", dataStr);
+            downloadAnchor.setAttribute("download", `BACKUP_STOCK_BOM_SABOR_${new Date().toISOString().slice(0,10)}.json`);
+            document.body.appendChild(downloadAnchor);
+            downloadAnchor.click();
+            downloadAnchor.remove();
+
+            alert("O seu ficheiro de cópia de segurança foi descarregado!\n\nPode agora arrastá-lo e guardá-lo na sua pasta do Google Drive.");
+        }
+
+        // Utilitário para Evitar XSS
+        function escapeHtml(str) {
+            return String(str)
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+    </script>
+</body>
+</html>
